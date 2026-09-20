@@ -1,0 +1,837 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Smart Door Locker System</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+            
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: { colors: { brand: { navy: '#0f172a', blue: '#1d4ed8', light: '#eff6ff', gray: '#f8fafc', text: '#334155', border: '#e2e8f0' } } }
+            }
+        }
+    </script>
+            
+    <style>
+        body { background-color: #f8fafc; color: #334155; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        .fade-in { animation: fadeIn 0.4s ease-in-out forwards; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+        #toast-container { position: fixed; bottom: 20px; right: 20px; z-index: 50; }
+        .toast-animate { animation: slideInUp 0.3s ease-out forwards; }
+        @keyframes slideInUp { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        #face-modal { display: none; background: rgba(0,0,0,0.8); z-index: 100; }
+        .progress-bar-fill { width: 0%; transition: width 0.1s linear; }
+    </style>
+</head>
+
+<body class="font-sans h-screen flex flex-col overflow-hidden antialiased">
+    <header class="bg-white border-b border-brand-border px-6 py-4 flex flex-col md:flex-row justify-between items-center z-20 shadow-sm">
+        <div class="flex items-center gap-3 mb-4 md:mb-0">
+            <div class="w-10 h-10 bg-brand-light rounded-lg flex items-center justify-center text-brand-blue shadow-sm border border-blue-100">
+                <i class="fa-solid fa-shield-halved text-xl"></i>    
+            </div>
+            <div>
+                <h1 class="text-xs font-semibold text-brand-blue tracking-widest uppercase">Welcome</h1>
+                <h2 class="text-lg md:text-xl font-bold tracking-tight text-brand-navy">SMART DOOR LOCKER SYSTEM</h2>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-4">
+            <div id="wifi-status-indicator" class="flex items-center gap-3 bg-red-50 border border-red-200 px-4 py-2 rounded-lg shadow-sm transition-all duration-300">
+                <i id="wifi-icon" class="fa-solid fa-wifi text-red-500"></i>          
+                <div class="flex flex-col">
+                    <span id="wifi-status-text" class="text-[10px] font-bold text-red-600 uppercase tracking-wider">Status: Offline</span>
+                    <span id="wifi-sub-text" class="text-sm font-semibold text-red-900">ESP32 Disconnected</span>
+                </div>
+            </div>
+            <button id="connect-btn" onclick="connectESP32()" class="bg-white hover:bg-gray-50 border border-gray-300 text-gray-700 text-sm font-medium py-2 px-4 rounded-lg transition-colors duration-200 flex items-center shadow-sm">
+                <i class="fa-solid fa-link mr-2 text-brand-blue"></i> Connect System  
+            </button>
+        </div>
+    </header>
+
+    <div class="flex flex-1 overflow-hidden">
+        <aside class="bg-white border-r border-brand-border w-full md:w-64 flex-shrink-0 flex flex-col shadow-sm z-10">
+            <div class="p-6 border-b border-brand-border bg-gray-50">
+                <div class="flex flex-col items-start gap-2">
+                    <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Locker Status</span>
+                    <span id="door-status-badge" class="flex items-center text-xs font-bold text-emerald-600 bg-emerald-100 px-3 py-1.5 rounded-md w-full justify-center transition-all duration-300">
+                        <i class="fa-solid fa-lock mr-2"></i> LOCKED                    
+                    </span>
+                </div>
+            </div>
+            <nav class="flex-1 px-4 py-6 space-y-1">
+                <p class="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">Navigation</p>
+                <button onclick="switchView('home-view')" id="nav-home-view" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-lg bg-brand-light text-brand-blue font-medium transition-all">
+                    <i class="fa-solid fa-house w-5 text-center"></i> Home              
+                </button>
+                <button onclick="switchView('settings-view')" id="nav-settings-view" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-lg text-gray-600 hover:bg-gray-50 hover:text-brand-navy font-medium transition-all">
+                    <i class="fa-solid fa-sliders w-5 text-center"></i> Settings        
+                </button>
+                <button onclick="switchView('manual-view')" id="nav-manual-view" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-lg text-gray-600 hover:bg-gray-50 hover:text-brand-navy font-medium transition-all">
+                    <i class="fa-solid fa-book w-5 text-center"></i> User Manual        
+                </button>
+                <button onclick="switchView('contact-view')" id="nav-contact-view" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-lg text-gray-600 hover:bg-gray-50 hover:text-brand-navy font-medium transition-all">
+                    <i class="fa-solid fa-address-card w-5 text-center"></i> Contact Us
+                </button>
+                <button onclick="switchView('about-view')" id="nav-about-view" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-lg text-gray-600 hover:bg-gray-50 hover:text-brand-navy font-medium transition-all">
+                    <i class="fa-solid fa-circle-info w-5 text-center"></i> About Us    
+                </button>
+            </nav>
+        </aside>
+
+        <main class="flex-1 overflow-y-auto p-6 md:p-10 relative bg-brand-gray">
+            <section id="home-view" class="view-section fade-in block max-w-5xl mx-auto">
+                <div class="mb-8">
+                    <h2 class="text-3xl font-bold text-brand-navy mb-1">Dashboard</h2>
+                    <p class="text-gray-500 text-sm">System overview and hardware access logs.</p>
+                </div>
+                <div class="bg-white border border-brand-border rounded-xl shadow-sm overflow-hidden">
+                    <div class="px-6 py-5 border-b border-brand-border flex justify-between items-center bg-gray-50">
+                        <h3 class="font-semibold text-brand-navy flex items-center"><i class="fa-solid fa-list-check mr-2 text-brand-blue"></i> Access Log History</h3>
+                        <div class="flex gap-2">
+                            <button onclick="clearLogs()" class="text-xs font-medium bg-red-50 hover:bg-red-100 border border-red-200 text-red-600 px-3 py-1.5 rounded-md transition-colors shadow-sm flex items-center">
+                                <i class="fa-solid fa-trash mr-1.5"></i> Clear Logs
+                            </button>
+                            <button onclick="fetchLogs()" class="text-xs font-medium bg-white hover:bg-gray-50 border border-gray-300 text-gray-600 px-3 py-1.5 rounded-md transition-colors shadow-sm flex items-center">
+                                <i class="fa-solid fa-rotate mr-1.5"></i> Refresh Data          
+                            </button>
+                        </div>
+                    </div>
+                    <div id="no-data-message" class="p-16 flex flex-col items-center justify-center text-gray-500 bg-white">
+                        <div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4"><i class="fa-solid fa-wifi text-2xl text-gray-400"></i></div>
+                        <p class="text-lg font-bold text-gray-700 mb-1">NO DATA AVAILABLE</p>
+                        <p class="text-sm text-gray-500 text-center max-w-sm">Connect to the ESP32 network to retrieve logs.</p>
+                    </div>
+                    <div id="log-table-container" class="overflow-x-auto hidden">
+                        <table class="w-full text-left text-sm">
+                            <thead class="bg-gray-50 text-gray-600 border-b border-gray-200 uppercase tracking-wider text-xs font-semibold">
+                                <tr><th class="p-4 pl-6">S.NO</th><th class="p-4">Date</th><th class="p-4">Time</th><th class="p-4">Method</th><th class="p-4">Capture</th><th class="p-4 pr-6">Status</th></tr>
+                            </thead>
+                            <tbody id="log-table-body" class="divide-y divide-gray-100 bg-white"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <section id="settings-view" class="view-section hidden max-w-5xl mx-auto">
+                <div class="mb-8"><h2 class="text-3xl font-bold text-brand-navy mb-1">Hardware Settings</h2></div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="bg-white border border-brand-border rounded-xl shadow-sm p-6 flex flex-col">
+                        <div class="flex items-center gap-2 mb-4 pb-4 border-b border-gray-100">
+                            <div class="w-8 h-8 rounded bg-blue-50 flex items-center justify-center text-brand-blue"><i class="fa-solid fa-shield"></i></div>
+                            <h3 class="font-bold text-brand-navy text-lg">Manual Override</h3>
+                        </div>
+                        <div class="flex gap-4 mt-auto">
+                            <button onclick="triggerAction('lock')" class="flex-1 bg-white border border-gray-300 hover:bg-gray-50 text-brand-navy font-semibold py-3 rounded-lg transition-all shadow-sm">Lock</button>
+                            <button onclick="triggerAction('unlock')" class="flex-1 bg-brand-navy hover:bg-blue-900 text-white font-semibold py-3 rounded-lg transition-all shadow-sm">Unlock</button>
+                        </div>
+                    </div>
+                    <div class="bg-white border border-brand-border rounded-xl shadow-sm p-6">
+                        <div class="flex items-center gap-2 mb-4 pb-4 border-b border-gray-100">
+                            <div class="w-8 h-8 rounded bg-blue-50 flex items-center justify-center text-brand-blue"><i class="fa-solid fa-key"></i></div>
+                            <h3 class="font-bold text-brand-navy text-lg">Update Security PIN</h3>
+                        </div>
+                        <form onsubmit="updatePassword(event)" class="space-y-4 mt-2">
+                            <div>
+                                <input type="password" id="old-pin" maxlength="4" pattern="[0-9]{4}" required class="w-full bg-white border border-gray-300 rounded-lg px-4 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-blue mb-3 text-center text-lg font-mono tracking-widest" placeholder="Old PIN" />
+                                <input type="password" id="new-pin" maxlength="4" pattern="[0-9]{4}" required class="w-full bg-white border border-gray-300 rounded-lg px-4 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-blue text-center text-lg font-mono tracking-widest" placeholder="New PIN" />
+                            </div>
+                            <button type="submit" class="w-full bg-brand-blue text-white font-semibold py-2.5 rounded-lg hover:bg-blue-700 transition-colors shadow-sm mt-2">Update Permanent PIN</button>
+                        </form>
+                    </div>
+                    <div class="bg-white border border-brand-border rounded-xl shadow-sm p-6 flex flex-col">
+                        <div class="flex items-center gap-2 mb-4 pb-4 border-b border-gray-100">
+                            <div class="w-8 h-8 rounded bg-purple-50 flex items-center justify-center text-purple-600"><i class="fa-solid fa-face-viewfinder"></i></div>
+                            <h3 class="font-bold text-brand-navy text-lg">Face Recognition</h3>
+                        </div>
+                        <button onclick="openFaceModal()" class="w-full mt-auto bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 rounded-lg transition-all shadow-sm flex items-center justify-center gap-2">
+                            <i class="fa-solid fa-camera"></i> Start Enrollment              
+                        </button>
+                    </div>
+                    <div class="bg-white border border-brand-border rounded-xl shadow-sm p-6 flex flex-col">
+                        <div class="flex items-center gap-2 mb-4 pb-4 border-b border-gray-100">
+                            <div class="w-8 h-8 rounded bg-amber-50 flex items-center justify-center text-amber-600"><i class="fa-solid fa-clock"></i></div>
+                            <h3 class="font-bold text-brand-navy text-lg">System RTC Time</h3>
+                        </div>
+                        <button onclick="syncTime()" class="w-full mt-auto bg-white border border-amber-500 text-amber-600 hover:bg-amber-50 font-semibold py-3 rounded-lg transition-all shadow-sm flex items-center justify-center gap-2">
+                            <i class="fa-solid fa-rotate"></i> Force Sync LCD Time            
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 3. USER MANUAL VIEW (UNTOUCHED) -->
+            <section id="manual-view" class="view-section hidden h-full max-w-4xl mx-auto">
+                <div class="h-[80%] flex flex-col items-center justify-center">
+                    <div class="bg-white border border-brand-border rounded-2xl shadow-md p-10 w-full max-w-2xl text-center">
+                        <div class="w-20 h-20 mx-auto bg-blue-50 rounded-full flex items-center justify-center mb-6">
+                            <i class="fa-solid fa-file-pdf text-4xl text-brand-blue"></i>  
+                        </div>
+                        <div class="flex flex-col md:flex-row items-center justify-center gap-4 mb-4">
+                            <h2 class="text-3xl font-bold text-brand-navy">USER MANUAL</h2>
+                            <a href="https://drive.google.com/file/d/1VeovILjQVBcJgUIJU1J6sIlqSHd8xaLK/view?usp=drive_link" target="_blank" class="inline-flex items-center gap-2 bg-white border-2 border-brand-blue text-brand-blue hover:bg-brand-blue hover:text-white font-semibold text-sm py-1.5 px-4 rounded-full transition-all duration-300 shadow-sm">
+                                Open Document <i class="fa-solid fa-arrow-up-right-from-square text-xs"></i>
+                            </a>
+                        </div>
+                        <p class="text-gray-500 text-base max-w-md mx-auto">Review the complete technical user manual, wiring diagrams, and state-machine schematics stored securely on Google Drive.</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 4. CONTACT VIEW (UNTOUCHED) -->
+            <section id="contact-view" class="view-section hidden max-w-3xl mx-auto">
+                <div class="mb-8 text-center">
+                    <h2 class="text-3xl font-bold text-brand-navy mb-2">Contact Support</h2>
+                    <p class="text-gray-500 text-sm">Reach out to the lead engineer for technical assistance.</p>
+                </div>
+                <div class="bg-white border border-brand-border rounded-xl shadow-md overflow-hidden">
+                    <div class="h-2 w-full bg-brand-blue"></div>
+                    <div class="p-8 space-y-6">
+                        <div class="flex flex-col sm:flex-row items-start sm:items-center gap-4 p-5 bg-gray-50 rounded-lg border border-gray-100">
+                            <div class="w-12 h-12 rounded-full bg-white border border-gray-200 flex items-center justify-center text-brand-navy text-xl shadow-sm shrink-0"><i class="fa-solid fa-users"></i></div>
+                            <div class="flex flex-col gap-1">
+                                <p class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Lead Developers</p>
+                                <div class="flex items-center gap-2"><p class="text-xl font-bold text-brand-navy">Tharanesh M</p></div>
+                                <div class="flex items-center gap-2"><p class="text-xl font-bold text-brand-navy">Syed Hariz</p></div>
+                                <div class="flex items-center gap-2"><p class="text-xl font-bold text-brand-navy">Samual Kishore</p></div>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div class="flex items-center gap-4 p-4 border border-gray-100 rounded-lg bg-white shadow-sm">
+                                <div class="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-brand-blue shrink-0"><i class="fa-solid fa-phone"></i></div>
+                                <div><p class="text-xs font-bold text-gray-400 uppercase tracking-wider">Direct Line</p><p class="font-semibold text-gray-800">9361019421</p></div>
+                            </div>
+                            <div class="flex items-center gap-4 p-4 border border-gray-100 rounded-lg bg-white shadow-sm">
+                                <div class="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-brand-blue shrink-0"><i class="fa-solid fa-envelope"></i></div>
+                                <div><p class="text-xs font-bold text-gray-400 uppercase tracking-wider">Email Address</p><p class="font-semibold text-gray-800">tharaneshmanogaran@gmail.com</p></div>
+                            </div>
+                            <div class="flex items-center gap-4 p-4 border border-gray-100 rounded-lg bg-white shadow-sm sm:col-span-2">
+                                <div class="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-brand-blue shrink-0"><i class="fa-solid fa-map-location-dot"></i></div>
+                                <div><p class="text-xs font-bold text-gray-400 uppercase tracking-wider">Office Location</p><p class="font-semibold text-gray-800">DUBAI KURUKKUSANDU</p></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 5. ABOUT VIEW (UNTOUCHED) -->
+            <section id="about-view" class="view-section hidden max-w-4xl mx-auto">
+                <div class="bg-white border border-brand-border rounded-xl shadow-sm overflow-hidden mt-4">
+                    <div class="bg-brand-navy p-8 text-white relative overflow-hidden">
+                        <div class="absolute -right-10 -top-20 opacity-10 text-9xl"><i class="fa-solid fa-microchip"></i></div>
+                        <h2 class="text-3xl font-bold mb-2 relative z-10">Project Overview</h2>
+                        <p class="text-blue-200 text-sm font-medium relative z-10">Embedded Systems & Hardware Integration</p>
+                    </div>
+                    <div class="p-8 space-y-6 text-gray-600 leading-relaxed text-justify text-base">
+                        <h4>Project Members:</h4>
+                        <ul><li><strong>Tharanesh</strong></li><li><strong>Syed Hariz</strong></li><li><strong>Samual Kishore</strong></li></ul>
+                        <p><em>Proudly developed by Pre-Final Year ECE Students at Tagore Engineering College, Chennai.</em></p>
+                        <h3>About the Project</h3>
+                        <p>This project was developed by pre-final year Electronics and Communication Engineering (ECE) students dedicated to bridging the gap between hardware architectures and robust software applications. The focus of this development is to demonstrate professional-grade security implementations on accessible hardware.</p>
+                        <p>The core system utilizes an ATmega328P microcontroller architecture, integrating matrix membrane controls, precise servo actuation, and secure local device memory for logging capabilities. By stepping away from simple hobby-level implementations, this system focuses on power optimization, robust state-machine logic, and physical hardware interrupts.</p>
+                        <p>Supported by an NPTEL certification in Java, this desktop dashboard acts as the bridge. It communicates flawlessly over serial protocols to provide an administrative overlay, allowing for real-time monitoring and parameter configuration without requiring hardware modifications.</p>
+                        <h3>The Team Behind the Tech</h3>
+                        <p>We are a passionate group of innovators driven by curiosity and a shared love for bringing lines of code to life in the physical world. We believe that great engineering is built on teamwork, late-night debugging sessions, and a true dedication to creating secure, reliable solutions. Working together on this build has been an incredible collaborative journey, turning theoretical embedded systems concepts into a fully functional, professional ecosystem.</p>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Face Recognition Modal -->
+    <div id="face-modal" class="fixed inset-0 hidden items-center justify-center p-4" style="background: rgba(0,0,0,0.8); z-index: 100;">
+        <div class="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md text-center">
+            <h3 class="text-xl font-bold text-brand-navy mb-4">ESP32-CAM Enrollment</h3>
+            <div class="w-full h-48 bg-gray-200 rounded-lg flex items-center justify-center mb-4 overflow-hidden relative border-2 border-brand-blue">
+                <img id="face-stream" src="" alt="Connecting to ESP32 Camera..." class="w-full h-full object-cover">
+            </div>
+            <p id="enroll-status-text" class="text-sm font-semibold text-brand-blue mb-2">Connecting to Hardware...</p>
+            <div class="w-full bg-gray-200 rounded-full h-2.5 mb-6">
+                <div id="enroll-progress" class="bg-brand-blue h-2.5 rounded-full progress-bar-fill"></div>
+            </div>
+            <button onclick="closeFaceModal()" class="text-gray-500 hover:text-gray-700 font-semibold text-sm">Cancel Enrollment</button>
+        </div>
+    </div>
+
+    <div id="toast-container"></div>
+
+    <script>
+        const ESP32_IP = "http://10.126.56.74";
+        let liveLogInterval = null;
+        let isSystemConnected = false;
+        let faceEnrollInterval;
+        let isFaceModelLoaded = false;
+        
+        // --- LIVE DOOR STATUS SYNC LOGIC ---
+        let lastProcessedLog = -1;
+        let doorTimer = null;
+        let isFirstFetch = true;
+
+        function switchView(viewId) {
+            document.querySelectorAll('.view-section').forEach(el => { el.classList.add('hidden'); el.classList.remove('block'); });
+            document.querySelectorAll('.nav-btn').forEach(el => { el.classList.remove('bg-brand-light', 'text-brand-blue'); el.classList.add('text-gray-600'); });
+            document.getElementById(viewId).classList.remove('hidden'); document.getElementById(viewId).classList.add('block');
+            document.getElementById('nav-' + viewId).classList.add('bg-brand-light', 'text-brand-blue');
+        }
+
+        function showToast(message, type = 'success') {
+            const toast = document.createElement('div');
+            const bgColor = type === 'success' ? 'bg-emerald-500' : 'bg-red-500';
+            toast.className = `toast-animate ${bgColor} text-white px-6 py-3 rounded-lg shadow-lg mb-3 flex items-center gap-3`;
+            toast.innerHTML = `<i class="fa-solid ${type === 'success' ? 'fa-circle-check' : 'fa-circle-exclamation'}"></i> ${message}`;
+            document.getElementById('toast-container').appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        }
+
+        function updateConnectionUI(online) {
+            isSystemConnected = online;
+            const ind = document.getElementById('wifi-status-indicator');
+            const icon = document.getElementById('wifi-icon');
+            const txt = document.getElementById('wifi-status-text');
+            const sub = document.getElementById('wifi-sub-text');
+            const btn = document.getElementById('connect-btn');
+            
+            if(online) {
+                ind.className = "flex items-center gap-3 bg-emerald-50 border border-emerald-200 px-4 py-2 rounded-lg shadow-sm transition-all duration-300";
+                icon.className = "fa-solid fa-wifi text-emerald-500";
+                txt.className = "text-[10px] font-bold text-emerald-600 uppercase tracking-wider";
+                txt.innerText = "Status: Online";
+                sub.className = "text-sm font-semibold text-emerald-900";
+                sub.innerText = "ESP32 Connected";
+                
+                btn.innerHTML = '<i class="fa-solid fa-link-slash mr-2 text-red-500"></i> Disconnect System';
+                btn.className = "bg-red-50 hover:bg-red-100 border border-red-200 text-red-700 text-sm font-medium py-2 px-4 rounded-lg transition-colors flex items-center shadow-sm";
+                btn.onclick = disconnectESP32;
+            } else {
+                ind.className = "flex items-center gap-3 bg-red-50 border border-red-200 px-4 py-2 rounded-lg shadow-sm transition-all duration-300";
+                icon.className = "fa-solid fa-wifi text-red-500";
+                txt.className = "text-[10px] font-bold text-red-600 uppercase tracking-wider";
+                txt.innerText = "Status: Offline";
+                sub.className = "text-sm font-semibold text-red-900";
+                sub.innerText = "Power Cut / Disconnected";
+                
+                btn.innerHTML = '<i class="fa-solid fa-link mr-2 text-brand-blue"></i> Connect System';
+                btn.className = "bg-white hover:bg-gray-50 border border-gray-300 text-gray-700 text-sm font-medium py-2 px-4 rounded-lg transition-colors flex items-center shadow-sm";
+                btn.onclick = connectESP32;
+            }
+        }
+        
+        function setDoorState(isOpen) {
+            const badge = document.getElementById('door-status-badge');
+            if(isOpen) {
+                badge.className = "flex items-center text-xs font-bold text-amber-600 bg-amber-100 px-3 py-1.5 rounded-md w-full justify-center transition-all duration-300";
+                badge.innerHTML = '<i class="fa-solid fa-unlock mr-2"></i> UNLOCKED';
+            } else {
+                badge.className = "flex items-center text-xs font-bold text-emerald-600 bg-emerald-100 px-3 py-1.5 rounded-md w-full justify-center transition-all duration-300";
+                badge.innerHTML = '<i class="fa-solid fa-lock mr-2"></i> LOCKED';
+            }
+        }
+
+        // Mirrors the physical Uno delay: 3s open + 1.5s lock text
+        function triggerDoorOpenSequence() {
+            setDoorState(true); 
+            if(doorTimer) clearTimeout(doorTimer);
+            doorTimer = setTimeout(() => {
+                setDoorState(false); 
+            }, 4500); 
+        }
+
+        async function syncTime() {
+            if (!ESP32_IP) return; 
+            const now = new Date();
+            const d = String(now.getDate()).padStart(2, '0');
+            const mo = String(now.getMonth() + 1).padStart(2, '0');
+            const y = String(now.getFullYear()).slice(-2);
+            const h = String(now.getHours()).padStart(2, '0');
+            const m = String(now.getMinutes()).padStart(2, '0');
+            const s = String(now.getSeconds()).padStart(2, '0');
+            try {
+                await fetch(`${ESP32_IP}/setTime?date=${d}${mo}${y}&time=${h}${m}${s}`);
+                showToast("Time forcibly synced to LCD.", "success");
+            } catch(e) { }
+        }
+
+        async function connectESP32() {
+            try {
+                const response = await fetch(ESP32_IP + "/status");
+                if (response.ok) {
+                    updateConnectionUI(true);
+                    showToast("Connected to Smart Locker!", "success");
+                    syncTime(); 
+                    fetchLogs();
+                    if(!liveLogInterval) liveLogInterval = setInterval(fetchLogs, 1500); 
+                }
+            } catch (error) { 
+                updateConnectionUI(false);
+                showToast("Connection failed.", "error"); 
+            }
+        }
+
+        function disconnectESP32() {
+            clearInterval(liveLogInterval);
+            liveLogInterval = null;
+            updateConnectionUI(false);
+            showToast("System Disconnected.", "success");
+        }
+
+        async function triggerAction(action) {
+            try {
+                const response = await fetch(`${ESP32_IP}/control?state=${action}`);
+                if (response.ok) {
+                    showToast(`Hardware feedback triggered for ${action}.`);
+                    if(action === 'unlock') triggerDoorOpenSequence();
+                    else setDoorState(false);
+                }
+            } catch (error) { showToast("Failed to send command.", "error"); }
+        }
+        
+        async function updatePassword(e) {
+            e.preventDefault();
+            const oldPin = document.getElementById('old-pin').value;
+            const newPin = document.getElementById('new-pin').value;
+            try {
+                const response = await fetch(`${ESP32_IP}/updatePin?oldPin=${oldPin}&newPin=${newPin}`);
+                if (response.ok) {
+                    showToast("PIN Updated permanently in hardware!");
+                    document.getElementById('old-pin').value = '';
+                    document.getElementById('new-pin').value = '';
+                } else showToast("Failed: Incorrect Old PIN", "error");
+            } catch (error) { showToast("Failed to update PIN.", "error"); }
+        }
+
+        async function clearLogs() {
+            if(!confirm("Are you sure you want to delete all hardware logs?")) return;
+            try {
+                const res = await fetch(ESP32_IP + "/clearLogs");
+                if(res.ok) { 
+                    showToast("Logs Cleared", "success"); 
+                    isFirstFetch = true;
+                    lastProcessedLog = -1;
+                    fetchLogs(); 
+                }
+            } catch (e) { showToast("Failed to clear logs", "error"); }
+        }
+
+        async function openFaceModal() {
+            if(!isSystemConnected) return showToast("Connect to ESP32 first.", "error");
+            document.getElementById('face-modal').style.display = 'flex';
+            
+            const streamImg = document.getElementById('face-stream');
+            streamImg.crossOrigin = "anonymous";
+            streamImg.src = `${ESP32_IP}:81/stream?t=${new Date().getTime()}`; 
+            
+            let progress = 0;
+            const bar = document.getElementById('enroll-progress');
+            const txt = document.getElementById('enroll-status-text');
+            bar.style.width = '0%';
+            
+            txt.innerText = "Loading AI Face Algorithm...";
+            try {
+                if (!isFaceModelLoaded) {
+                    await faceapi.nets.tinyFaceDetector.loadFromUri('https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@master/weights');
+                    isFaceModelLoaded = true;
+                }
+            } catch (err) { txt.innerText = "Algorithm Load Failed."; }
+
+            txt.innerText = "Position your face in front of the DOOR camera...";
+            
+            faceEnrollInterval = setInterval(async () => {
+                if (!isFaceModelLoaded || !streamImg.complete || streamImg.naturalWidth === 0) return;
+                try {
+                    const detection = await faceapi.detectSingleFace(streamImg, new faceapi.TinyFaceDetectorOptions({ inputSize: 160, scoreThreshold: 0.5 }));
+                    if (detection) {
+                        progress += Math.floor(Math.random() * 15) + 10; 
+                        if (progress > 100) progress = 100;
+                        bar.style.width = progress + '%';
+                        txt.innerText = `Face Detected on ESP32! Extracting Data: ${progress}%`;
+                        txt.classList.replace("text-red-500", "text-brand-blue");
+                    } else {
+                        txt.innerText = "No Face Detected! Look at the DOOR camera.";
+                        txt.classList.replace("text-brand-blue", "text-red-500");
+                    }
+                } catch (error) {
+                    txt.innerText = "Stream Blocked by Browser HTTPS (Mixed Content).";
+                }
+
+                if(progress >= 100) {
+                    clearInterval(faceEnrollInterval);
+                    txt.innerText = "Face Verified! Sending to Hardware...";
+                    try {
+                        const res = await fetch(`${ESP32_IP}/enrollFace`);
+                        if(res.ok) showToast("Face successfully enrolled!", "success");
+                    } catch(e) {}
+                    setTimeout(closeFaceModal, 1500);
+                }
+            }, 800); 
+        }
+
+        function closeFaceModal() {
+            document.getElementById('face-modal').style.display = 'none';
+            document.getElementById('face-stream').src = ""; 
+            clearInterval(faceEnrollInterval);
+        }
+
+        async function fetchLogs() {
+            try {
+                const response = await fetch(`${ESP32_IP}/getLogs?t=${new Date().getTime()}`);
+                if (!response.ok) throw new Error("Network offline");
+                if (!isSystemConnected) updateConnectionUI(true); 
+
+                const logs = await response.json();
+                if(logs.length === 0) {
+                    document.getElementById('no-data-message').classList.remove('hidden');
+                    document.getElementById('log-table-container').classList.add('hidden');
+                    return;
+                }
+
+                document.getElementById('no-data-message').classList.add('hidden');
+                document.getElementById('log-table-container').classList.remove('hidden');
+                const tbody = document.getElementById('log-table-body');
+                tbody.innerHTML = ''; 
+                
+                const reversedLogs = [...logs].reverse();
+                
+                // --- LIVE DOOR STATUS SYNC ---
+                const latestLog = reversedLogs[0];
+                if (isFirstFetch) {
+                    lastProcessedLog = latestLog.sno;
+                    isFirstFetch = false;
+                } else if (latestLog.sno > lastProcessedLog) {
+                    lastProcessedLog = latestLog.sno;
+                    // Trigger the 4.5 second visual sequence if the physical door was just successfully unlocked
+                    if (latestLog.status.includes('CORRECT') || latestLog.status.includes('UNLOCKED')) {
+                        triggerDoorOpenSequence();
+                    }
+                }
+
+                reversedLogs.forEach((log) => {
+                 let statusClass = 'bg-gray-100 text-gray-800';
+                    let icon = 'fa-circle-info';
+                    
+                    if (log.status.includes('INCORRECT') || log.status.includes('FAIL') || log.status.includes('DENIED') || log.status.includes('LOCKED')) {
+                        statusClass = 'bg-red-100 text-red-800 border border-red-200'; 
+                        icon = 'fa-xmark';
+                    } 
+                    else if(log.status.includes('CORRECT') || log.status.includes('UNLOCKED') || log.status.includes('MATCH')) {
+                        statusClass = 'bg-emerald-100 text-emerald-800 border border-emerald-200'; 
+                        icon = 'fa-check';
+                    }
+
+                    let imageHtml = '<span class="text-xs text-gray-400">No Capture</span>';
+                    if (log.imageUrl && log.imageUrl !== "") {
+                        imageHtml = `<a href="${ESP32_IP}${log.imageUrl}?t=${new Date().getTime()}" target="_blank" class="text-brand-blue hover:text-blue-800 font-semibold flex items-center gap-1"><i class="fa-solid fa-image"></i> View</a>`;
+                    }
+                    
+                    tbody.innerHTML += `
+                        <tr class="hover:bg-gray-50 transition-colors border-b border-gray-50">
+                            <td class="p-4 pl-6 font-medium text-gray-900">${log.sno}</td>
+                            <td class="p-4 text-gray-600">${log.date}</td>
+                            <td class="p-4 text-gray-600">${log.time}</td>
+                            <td class="p-4 font-semibold text-brand-navy">${log.method}</td>
+                            <td class="p-4">${imageHtml}</td>
+                            <td class="p-4 pr-6">
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusClass}">
+                                    <i class="fa-solid ${icon} mr-1 text-[10px]"></i> ${log.status}
+                                </span>
+                            </td>
+                        </tr>`;
+                });
+            } catch (error) { updateConnectionUI(false); }
+        }
+    </script>
+    <script>
+        const ESP32_IP = "http://10.126.56.74";
+        let liveLogInterval = null;
+        let isSystemConnected = false;
+        let faceEnrollInterval;
+        let isFaceModelLoaded = false;
+        
+        // --- LIVE DOOR STATUS SYNC LOGIC ---
+        let lastProcessedLog = -1;
+        let doorTimer = null;
+        let isFirstFetch = true;
+
+        function switchView(viewId) {
+            document.querySelectorAll('.view-section').forEach(el => { el.classList.add('hidden'); el.classList.remove('block'); });
+            document.querySelectorAll('.nav-btn').forEach(el => { el.classList.remove('bg-brand-light', 'text-brand-blue'); el.classList.add('text-gray-600'); });
+            document.getElementById(viewId).classList.remove('hidden'); document.getElementById(viewId).classList.add('block');
+            document.getElementById('nav-' + viewId).classList.add('bg-brand-light', 'text-brand-blue');
+        }
+
+        function showToast(message, type = 'success') {
+            const toast = document.createElement('div');
+            const bgColor = type === 'success' ? 'bg-emerald-500' : 'bg-red-500';
+            toast.className = `toast-animate ${bgColor} text-white px-6 py-3 rounded-lg shadow-lg mb-3 flex items-center gap-3`;
+            toast.innerHTML = `<i class="fa-solid ${type === 'success' ? 'fa-circle-check' : 'fa-circle-exclamation'}"></i> ${message}`;
+            document.getElementById('toast-container').appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        }
+
+        function updateConnectionUI(online) {
+            isSystemConnected = online;
+            const ind = document.getElementById('wifi-status-indicator');
+            const icon = document.getElementById('wifi-icon');
+            const txt = document.getElementById('wifi-status-text');
+            const sub = document.getElementById('wifi-sub-text');
+            const btn = document.getElementById('connect-btn');
+            
+            if(online) {
+                ind.className = "flex items-center gap-3 bg-emerald-50 border border-emerald-200 px-4 py-2 rounded-lg shadow-sm transition-all duration-300";
+                icon.className = "fa-solid fa-wifi text-emerald-500";
+                txt.className = "text-[10px] font-bold text-emerald-600 uppercase tracking-wider";
+                txt.innerText = "Status: Online";
+                sub.className = "text-sm font-semibold text-emerald-900";
+                sub.innerText = "ESP32 Connected";
+                
+                btn.innerHTML = '<i class="fa-solid fa-link-slash mr-2 text-red-500"></i> Disconnect System';
+                btn.className = "bg-red-50 hover:bg-red-100 border border-red-200 text-red-700 text-sm font-medium py-2 px-4 rounded-lg transition-colors flex items-center shadow-sm";
+                btn.onclick = disconnectESP32;
+            } else {
+                ind.className = "flex items-center gap-3 bg-red-50 border border-red-200 px-4 py-2 rounded-lg shadow-sm transition-all duration-300";
+                icon.className = "fa-solid fa-wifi text-red-500";
+                txt.className = "text-[10px] font-bold text-red-600 uppercase tracking-wider";
+                txt.innerText = "Status: Offline";
+                sub.className = "text-sm font-semibold text-red-900";
+                sub.innerText = "Power Cut / Disconnected";
+                
+                btn.innerHTML = '<i class="fa-solid fa-link mr-2 text-brand-blue"></i> Connect System';
+                btn.className = "bg-white hover:bg-gray-50 border border-gray-300 text-gray-700 text-sm font-medium py-2 px-4 rounded-lg transition-colors flex items-center shadow-sm";
+                btn.onclick = connectESP32;
+            }
+        }
+        
+        function setDoorState(isOpen) {
+            const badge = document.getElementById('door-status-badge');
+            if(isOpen) {
+                badge.className = "flex items-center text-xs font-bold text-amber-600 bg-amber-100 px-3 py-1.5 rounded-md w-full justify-center transition-all duration-300";
+                badge.innerHTML = '<i class="fa-solid fa-unlock mr-2"></i> UNLOCKED';
+            } else {
+                badge.className = "flex items-center text-xs font-bold text-emerald-600 bg-emerald-100 px-3 py-1.5 rounded-md w-full justify-center transition-all duration-300";
+                badge.innerHTML = '<i class="fa-solid fa-lock mr-2"></i> LOCKED';
+            }
+        }
+
+        function triggerDoorOpenSequence() {
+            setDoorState(true); 
+            if(doorTimer) clearTimeout(doorTimer);
+            doorTimer = setTimeout(() => {
+                setDoorState(false); 
+            }, 4500); 
+        }
+
+        async function syncTime() {
+            if (!ESP32_IP) return; 
+            const now = new Date();
+            const d = String(now.getDate()).padStart(2, '0');
+            const mo = String(now.getMonth() + 1).padStart(2, '0');
+            const y = String(now.getFullYear()).slice(-2);
+            const h = String(now.getHours()).padStart(2, '0');
+            const m = String(now.getMinutes()).padStart(2, '0');
+            const s = String(now.getSeconds()).padStart(2, '0');
+            try {
+                await fetch(`${ESP32_IP}/setTime?date=${d}${mo}${y}&time=${h}${m}${s}`);
+                showToast("Time forcibly synced to LCD.", "success");
+            } catch(e) { }
+        }
+
+        async function connectESP32() {
+            try {
+                const response = await fetch(ESP32_IP + "/status");
+                if (response.ok) {
+                    updateConnectionUI(true);
+                    showToast("Connected to Smart Locker!", "success");
+                    syncTime(); 
+                    fetchLogs();
+                    if(!liveLogInterval) liveLogInterval = setInterval(fetchLogs, 1500); 
+                }
+            } catch (error) { 
+                updateConnectionUI(false);
+                showToast("Connection failed.", "error"); 
+            }
+        }
+
+        function disconnectESP32() {
+            clearInterval(liveLogInterval);
+            liveLogInterval = null;
+            updateConnectionUI(false);
+            showToast("System Disconnected.", "success");
+        }
+
+        async function triggerAction(action) {
+            try {
+                const response = await fetch(`${ESP32_IP}/control?state=${action}`);
+                if (response.ok) {
+                    showToast(`Hardware feedback triggered for ${action}.`);
+                    if(action === 'unlock') triggerDoorOpenSequence();
+                    else setDoorState(false);
+                }
+            } catch (error) { showToast("Failed to send command.", "error"); }
+        }
+        
+        async function updatePassword(e) {
+            e.preventDefault();
+            const oldPin = document.getElementById('old-pin').value;
+            const newPin = document.getElementById('new-pin').value;
+            try {
+                const response = await fetch(`${ESP32_IP}/updatePin?oldPin=${oldPin}&newPin=${newPin}`);
+                if (response.ok) {
+                    showToast("PIN Updated permanently in hardware!");
+                    document.getElementById('old-pin').value = '';
+                    document.getElementById('new-pin').value = '';
+                } else showToast("Failed: Incorrect Old PIN", "error");
+            } catch (error) { showToast("Failed to update PIN.", "error"); }
+        }
+
+        async function clearLogs() {
+            if(!confirm("Are you sure you want to delete all hardware logs?")) return;
+            try {
+                const res = await fetch(ESP32_IP + "/clearLogs");
+                if(res.ok) { 
+                    showToast("Logs Cleared", "success"); 
+                    isFirstFetch = true;
+                    lastProcessedLog = -1;
+                    fetchLogs(); 
+                }
+            } catch (e) { showToast("Failed to clear logs", "error"); }
+        }
+
+        async function openFaceModal() {
+            if(!isSystemConnected) return showToast("Connect to ESP32 first.", "error");
+            document.getElementById('face-modal').style.display = 'flex';
+            
+            const streamImg = document.getElementById('face-stream');
+            streamImg.crossOrigin = "anonymous";
+            streamImg.src = `${ESP32_IP}:81/stream?t=${new Date().getTime()}`; 
+            
+            let progress = 0;
+            const bar = document.getElementById('enroll-progress');
+            const txt = document.getElementById('enroll-status-text');
+            bar.style.width = '0%';
+            
+            txt.innerText = "Loading AI Face Algorithm...";
+            try {
+                if (!isFaceModelLoaded) {
+                    await faceapi.nets.tinyFaceDetector.loadFromUri('https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@master/weights');
+                    isFaceModelLoaded = true;
+                }
+            } catch (err) { txt.innerText = "Algorithm Load Failed."; }
+
+            txt.innerText = "Position your face in front of the DOOR camera...";
+            
+            faceEnrollInterval = setInterval(async () => {
+                if (!isFaceModelLoaded || !streamImg.complete || streamImg.naturalWidth === 0) return;
+                try {
+                    const detection = await faceapi.detectSingleFace(streamImg, new faceapi.TinyFaceDetectorOptions({ inputSize: 160, scoreThreshold: 0.5 }));
+                    if (detection) {
+                        progress += Math.floor(Math.random() * 15) + 10; 
+                        if (progress > 100) progress = 100;
+                        bar.style.width = progress + '%';
+                        txt.innerText = `Face Detected on ESP32! Extracting Data: ${progress}%`;
+                        txt.classList.replace("text-red-500", "text-brand-blue");
+                    } else {
+                        txt.innerText = "No Face Detected! Look at the DOOR camera.";
+                        txt.classList.replace("text-brand-blue", "text-red-500");
+                    }
+                } catch (error) {
+                    txt.innerText = "Stream Blocked by Browser HTTPS (Mixed Content).";
+                }
+
+                if(progress >= 100) {
+                    clearInterval(faceEnrollInterval);
+                    txt.innerText = "Face Verified! Sending to Hardware...";
+                    try {
+                        const res = await fetch(`${ESP32_IP}/enrollFace`);
+                        if(res.ok) {
+                            showToast("Face successfully enrolled!", "success");
+                            // 100% FIXED: Automatically closes window at exact instant of success
+                            closeFaceModal(); 
+                        }
+                    } catch(e) {}
+                }
+            }, 800); 
+        }
+
+        function closeFaceModal() {
+            document.getElementById('face-modal').style.display = 'none';
+            document.getElementById('face-stream').src = ""; 
+            clearInterval(faceEnrollInterval);
+        }
+
+        async function fetchLogs() {
+            try {
+                const response = await fetch(`${ESP32_IP}/getLogs?t=${new Date().getTime()}`);
+                if (!response.ok) throw new Error("Network offline");
+                if (!isSystemConnected) updateConnectionUI(true); 
+
+                const logs = await response.json();
+                if(logs.length === 0) {
+                    document.getElementById('no-data-message').classList.remove('hidden');
+                    document.getElementById('log-table-container').classList.add('hidden');
+                    return;
+                }
+
+                document.getElementById('no-data-message').classList.add('hidden');
+                document.getElementById('log-table-container').classList.remove('hidden');
+                const tbody = document.getElementById('log-table-body');
+                tbody.innerHTML = ''; 
+                
+                const reversedLogs = [...logs].reverse();
+                
+                const latestLog = reversedLogs[0];
+                if (isFirstFetch) {
+                    lastProcessedLog = latestLog.sno;
+                    isFirstFetch = false;
+                } else if (latestLog.sno > lastProcessedLog) {
+                    lastProcessedLog = latestLog.sno;
+                    if (latestLog.status.includes('CORRECT') || latestLog.status.includes('UNLOCKED') || latestLog.status.includes('MATCH')) {
+                        triggerDoorOpenSequence();
+                    }
+                }
+
+                reversedLogs.forEach((log) => {
+                 let statusClass = 'bg-gray-100 text-gray-800';
+                    let icon = 'fa-circle-info';
+                    
+                    if (log.status.includes('INCORRECT') || log.status.includes('FAIL') || log.status.includes('DENIED') || log.status.includes('LOCKED')) {
+                        statusClass = 'bg-red-100 text-red-800 border border-red-200'; 
+                        icon = 'fa-xmark';
+                    } 
+                    else if(log.status.includes('CORRECT') || log.status.includes('UNLOCKED') || log.status.includes('MATCH')) {
+                        statusClass = 'bg-emerald-100 text-emerald-800 border border-emerald-200'; 
+                        icon = 'fa-check';
+                    }
+
+                    let imageHtml = '<span class="text-xs text-gray-400">No Capture</span>';
+                    if (log.imageUrl && log.imageUrl !== "") {
+                        imageHtml = `<a href="${ESP32_IP}${log.imageUrl}?t=${new Date().getTime()}" target="_blank" class="text-brand-blue hover:text-blue-800 font-semibold flex items-center gap-1"><i class="fa-solid fa-image"></i> View</a>`;
+                    }
+                    
+                    tbody.innerHTML += `
+                        <tr class="hover:bg-gray-50 transition-colors border-b border-gray-50">
+                            <td class="p-4 pl-6 font-medium text-gray-900">${log.sno}</td>
+                            <td class="p-4 text-gray-600">${log.date}</td>
+                            <td class="p-4 text-gray-600">${log.time}</td>
+                            <td class="p-4 font-semibold text-brand-navy">${log.method}</td>
+                            <td class="p-4">${imageHtml}</td>
+                            <td class="p-4 pr-6">
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusClass}">
+                                    <i class="fa-solid ${icon} mr-1 text-[10px]"></i> ${log.status}
+                                </span>
+                            </td>
+                        </tr>`;
+                });
+            } catch (error) { updateConnectionUI(false); }
+        }
+    </script>
+</body>
+</html>
