@@ -6,6 +6,8 @@
     <title>Smart Door Locker System</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+    <!-- ADDED: Chart.js for Activity Analytics -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
             
@@ -136,7 +138,6 @@
                             <button onclick="triggerAction('unlock')" class="flex-1 bg-brand-navy hover:bg-blue-900 text-white font-semibold py-3 rounded-lg transition-all shadow-sm">Unlock</button>
                         </div>
                     </div>
-                    
                     <div class="bg-white border border-brand-border rounded-xl shadow-sm p-6">
                         <div class="flex items-center gap-2 mb-4 pb-4 border-b border-gray-100">
                             <div class="w-8 h-8 rounded bg-blue-50 flex items-center justify-center text-brand-blue"><i class="fa-solid fa-key"></i></div>
@@ -150,7 +151,6 @@
                             <button type="submit" class="w-full bg-brand-blue text-white font-semibold py-2.5 rounded-lg hover:bg-blue-700 transition-colors shadow-sm mt-2">Update Permanent PIN</button>
                         </form>
                     </div>
-
                     <div class="bg-white border border-brand-border rounded-xl shadow-sm p-6 flex flex-col">
                         <div class="flex items-center gap-2 mb-4 pb-4 border-b border-gray-100">
                             <div class="w-8 h-8 rounded bg-purple-50 flex items-center justify-center text-purple-600"><i class="fa-solid fa-face-viewfinder"></i></div>
@@ -160,7 +160,6 @@
                             <i class="fa-solid fa-camera"></i> Start Enrollment              
                         </button>
                     </div>
-
                     <div class="bg-white border border-brand-border rounded-xl shadow-sm p-6 flex flex-col">
                         <div class="flex items-center gap-2 mb-4 pb-4 border-b border-gray-100">
                             <div class="w-8 h-8 rounded bg-amber-50 flex items-center justify-center text-amber-600"><i class="fa-solid fa-clock"></i></div>
@@ -171,17 +170,18 @@
                         </button>
                     </div>
                     
-                    <!-- NEW: Intruder Gallery View -->
-                    <div class="bg-white border border-brand-border rounded-xl shadow-sm p-6 flex flex-col">
+                    <!-- NEW: Activity Analytics Chart -->
+                    <div class="bg-white border border-brand-border rounded-xl shadow-sm p-6 flex flex-col sm:col-span-2 md:col-span-2">
                         <div class="flex items-center gap-2 mb-4 pb-4 border-b border-gray-100">
-                            <div class="w-8 h-8 rounded bg-red-50 flex items-center justify-center text-red-600"><i class="fa-solid fa-images"></i></div>
-                            <h3 class="font-bold text-brand-navy text-lg">Intruder Gallery</h3>
+                            <div class="w-8 h-8 rounded bg-indigo-50 flex items-center justify-center text-indigo-600"><i class="fa-solid fa-chart-pie"></i></div>
+                            <h3 class="font-bold text-brand-navy text-lg">Activity Analytics</h3>
                         </div>
-                        <p class="text-sm text-gray-500 mb-6 flex-1">View all captured photos of failed access attempts in a visual grid.</p>
-                        <button onclick="openGalleryModal()" class="w-full mt-auto bg-white border border-red-500 text-red-600 hover:bg-red-50 font-semibold py-3 rounded-lg transition-all shadow-sm flex items-center justify-center gap-2">
-                            <i class="fa-solid fa-eye"></i> Open Gallery            
-                        </button>
+                        <p class="text-sm text-gray-500 mb-4 flex-1">Real-time ratio of successful entries versus intruder attempts.</p>
+                        <div class="w-full relative flex items-center justify-center" style="height: 250px;">
+                            <canvas id="analyticsChart"></canvas>
+                        </div>
                     </div>
+                    
                 </div>
             </section>
 
@@ -217,8 +217,8 @@
                             <div class="flex flex-col gap-1">
                                 <p class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Lead Developers</p>
                                 <div class="flex items-center gap-2"><p class="text-xl font-bold text-brand-navy">Tharanesh M</p></div>
-                                <div class="flex items-center gap-2"><p class="text-xl font-bold text-brand-navy">Syed Hariz</p></div>
                                 <div class="flex items-center gap-2"><p class="text-xl font-bold text-brand-navy">Samual Kishore</p></div>
+                                <div class="flex items-center gap-2"><p class="text-xl font-bold text-brand-navy">Syed Hariz</p></div>
                             </div>
                         </div>
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -239,4 +239,4 @@
                 </div>
             </section>
 
-   
+ 
