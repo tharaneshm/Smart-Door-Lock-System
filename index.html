@@ -304,6 +304,7 @@
     <script>
         let ESP32_IP = ""; 
         let ESP32_STREAM = "";
+        const DEFAULT_IP = "10.11.147.74"; // The new hardcoded default IP
         
         let liveLogInterval = null;
         let isSystemConnected = false;
@@ -398,13 +399,13 @@
             } catch(e) { }
         }
 
-        // AUTO-CONNECT: Tries silently. ONLY prompts if the connection fails.
+        // AUTO-CONNECT: Uses hardcoded IP as default and waits 7 seconds before prompting
         async function autoConnectESP32(forcePrompt = false) {
             let savedIP = localStorage.getItem("esp32_ip");
-            let targetHost = savedIP ? savedIP : "esp32cam.local";
+            let targetHost = savedIP ? savedIP : DEFAULT_IP;
             
             if (forcePrompt) {
-                 let manualIP = prompt("Connection failed.\n\nIf you are on an Android phone, please enter the ESP32 IP address manually (e.g., 10.246.135.25):", savedIP || "");
+                 let manualIP = prompt("Connection failed.\n\nPlease enter the ESP32 IP address manually:", targetHost);
                  if (manualIP !== null && manualIP.trim() !== "") {
                      let cleanIP = manualIP.replace(/^https?:\/\//, '').replace(/\/$/, '');
                      localStorage.setItem("esp32_ip", cleanIP);
@@ -424,7 +425,8 @@
 
             try {
                 const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 7500);
+                // Increased timeout to 7 seconds to prevent premature failure
+                const timeoutId = setTimeout(() => controller.abort(), 7000); 
                 
                 const response = await fetch(ESP32_IP + "/status", { signal: controller.signal });
                 clearTimeout(timeoutId);
