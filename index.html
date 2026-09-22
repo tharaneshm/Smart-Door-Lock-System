@@ -54,7 +54,7 @@
                     <span id="wifi-sub-text" class="text-sm font-semibold text-red-900">ESP32 Disconnected</span>
                 </div>
             </div>
-            <button id="connect-btn" onclick="autoConnectESP32()" class="bg-white hover:bg-gray-50 border border-gray-300 text-gray-700 text-sm font-medium py-2 px-4 rounded-lg transition-colors duration-200 flex items-center shadow-sm">
+            <button id="connect-btn" onclick="connectESP32()" class="bg-white hover:bg-gray-50 border border-gray-300 text-gray-700 text-sm font-medium py-2 px-4 rounded-lg transition-colors duration-200 flex items-center shadow-sm">
                 <i class="fa-solid fa-link mr-2 text-brand-blue"></i> Connect System  
             </button>
         </div>
@@ -97,15 +97,15 @@
                     <p class="text-gray-500 text-sm">System overview and hardware access logs.</p>
                 </div>
 
-                <!-- IP CONFIGURATION PANEL (Hidden by default) -->
-                <div id="ip-config-panel" class="hidden bg-white border border-brand-border rounded-xl shadow-sm overflow-hidden mb-8">
+                <!-- NEW IP CONFIGURATION PANEL -->
+                <div class="bg-white border border-brand-border rounded-xl shadow-sm overflow-hidden mb-8">
                     <div class="px-6 py-4 border-b border-brand-border flex items-center gap-3 bg-gray-50">
                         <div class="w-8 h-8 rounded bg-blue-50 flex items-center justify-center text-brand-blue"><i class="fa-solid fa-network-wired"></i></div>
                         <h3 class="font-bold text-brand-navy">Network Configuration</h3>
                     </div>
                     <div class="p-6 flex flex-col sm:flex-row gap-4 items-end">
                         <div class="w-full sm:flex-1">
-                            <label for="ipAddress" class="block mb-2 text-sm font-medium text-gray-700">Connection Failed. Enter ESP32 IP Address Manually:</label>
+                            <label for="ipAddress" class="block mb-2 text-sm font-medium text-gray-700">Enter ESP32 IP Address</label>
                             <div class="relative">
                                 <div class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
                                     <i class="fa-solid fa-wifi text-gray-400"></i>
@@ -113,7 +113,7 @@
                                 <input type="text" id="ipAddress" placeholder="e.g., 10.246.135.25" class="bg-white border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-brand-blue focus:border-brand-blue block w-full pl-10 p-2.5 outline-none shadow-sm transition-all" />
                             </div>
                         </div>
-                        <button onclick="manualConnectESP32()" class="w-full sm:w-auto bg-brand-blue hover:bg-blue-700 text-white font-semibold py-2.5 px-6 rounded-lg transition-colors shadow-sm flex items-center justify-center gap-2 whitespace-nowrap">
+                        <button onclick="connectESP32()" class="w-full sm:w-auto bg-brand-blue hover:bg-blue-700 text-white font-semibold py-2.5 px-6 rounded-lg transition-colors shadow-sm flex items-center justify-center gap-2 whitespace-nowrap">
                             <i class="fa-solid fa-plug"></i> Initialize Connection
                         </button>
                     </div>
@@ -324,6 +324,7 @@
     <div id="toast-container"></div>
 
     <script>
+        // DYNAMIC URLs replacing the hardcoded .local address
         let ESP32_IP = ""; 
         let ESP32_STREAM = "";
         
@@ -337,6 +338,7 @@
         let doorTimer = null;
         let isFirstFetch = true;
 
+        // Load the last successful IP when the page opens
         window.addEventListener('DOMContentLoaded', () => {
             const savedIP = localStorage.getItem("esp32_ip");
             if(savedIP) {
@@ -389,7 +391,7 @@
                 
                 btn.innerHTML = '<i class="fa-solid fa-link mr-2 text-brand-blue"></i> Connect System';
                 btn.className = "bg-white hover:bg-gray-50 border border-gray-300 text-gray-700 text-sm font-medium py-2 px-4 rounded-lg transition-colors flex items-center shadow-sm";
-                btn.onclick = autoConnectESP32;
+                btn.onclick = connectESP32;
             }
         }
         
@@ -427,53 +429,36 @@
             } catch(e) { }
         }
 
-        // 1. SILENT AUTO CONNECT (Triggered by Header Button)
-        async function autoConnectESP32() {
-            let savedIP = localStorage.getItem("esp32_ip");
-            let targetHost = savedIP ? savedIP : "esp32cam.local";
-            
-            ESP32_IP = `http://${targetHost}`;
-            ESP32_STREAM = `http://${targetHost}:81`;
-
-            try {
-                // AbortController ensures we don't wait 60 seconds for an unresolved .local address
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 3500);
-                
-                const response = await fetch(ESP32_IP + "/status", { signal: controller.signal });
-                clearTimeout(timeoutId);
-
-                if (response.ok) {
-                    updateConnectionUI(true);
-                    showToast("Connected to Smart Locker!", "success");
-                    document.getElementById('ip-config-panel').classList.add('hidden'); // Hide entry panel if it was open
-                    syncTime(); 
-                    fetchLogs();
-                    if(!liveLogInterval) liveLogInterval = setInterval(fetchLogs, 1500); 
-                } else {
-                    throw new Error("Invalid response");
-                }
-            } catch (error) { 
-                updateConnectionUI(false);
-                // IF CONNECTION FAILS, REVEAL THE MANUAL IP ENTRY PANEL
-                document.getElementById('ip-config-panel').classList.remove('hidden');
-                switchView('home-view');
-                showToast("Connection failed. Please enter IP address.", "error"); 
-            }
-        }
-
-        // 2. MANUAL OVERRIDE CONNECT (Triggered by input field button)
-        function manualConnectESP32() {
+        async function connectESP32() {
+            // Read and format the dynamic IP input
             const ipInput = document.getElementById("ipAddress").value.trim();
             if(!ipInput) {
+                switchView('home-view');
                 document.getElementById("ipAddress").focus();
                 return showToast("Please enter the ESP32 IP address.", "error");
             }
+
+            // Strip any accidental http:// or trailing slashes provided by the user
             const cleanIP = ipInput.replace(/^https?:\/\//, '').replace(/\/$/, '');
-            localStorage.setItem("esp32_ip", cleanIP);
+            ESP32_IP = `http://${cleanIP}`;
+            ESP32_STREAM = `http://${cleanIP}:81`;
             
-            // Retry connection using the new IP
-            autoConnectESP32();
+            // Save it for the next session
+            localStorage.setItem("esp32_ip", cleanIP);
+
+            try {
+                const response = await fetch(ESP32_IP + "/status");
+                if (response.ok) {
+                    updateConnectionUI(true);
+                    showToast("Connected to Smart Locker!", "success");
+                    syncTime(); 
+                    fetchLogs();
+                    if(!liveLogInterval) liveLogInterval = setInterval(fetchLogs, 1500); 
+                }
+            } catch (error) { 
+                updateConnectionUI(false);
+                showToast("Connection failed.", "error"); 
+            }
         }
 
         function disconnectESP32() {
@@ -524,6 +509,7 @@
             } catch (e) { showToast("Failed to clear logs", "error"); }
         }
 
+        // ORIGINAL HARDWARE ENROLLMENT
         async function openFaceModal() {
             if(!isSystemConnected) return showToast("Connect to ESP32 first.", "error");
             document.getElementById('face-modal').style.display = 'flex';
@@ -585,6 +571,7 @@
             clearInterval(faceEnrollInterval);
         }
 
+        // ADVANCED 99% WEB AI FUNCTIONS
         let aiScanInterval;
         let isAdvancedModelsLoaded = false;
         
