@@ -424,7 +424,7 @@
 
             try {
                 const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 3500);
+                const timeoutId = setTimeout(() => controller.abort(), 7500);
                 
                 const response = await fetch(ESP32_IP + "/status", { signal: controller.signal });
                 clearTimeout(timeoutId);
