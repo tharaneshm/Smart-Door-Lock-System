@@ -723,8 +723,8 @@
                     isFirstFetch = false;
                 } else if (latestLog.sno > lastProcessedLog) {
                     lastProcessedLog = latestLog.sno;
-                    if (latestLog.status.includes('CORRECT') || latestLog.status.includes('UNLOCKED') || latestLog.status.includes('MATCH')) {
-                        triggerDoorOpenSequence();
+                    if (!latestLog.status.includes('INCORRECT') && (latestLog.status.includes('CORRECT') || latestLog.status.includes('UNLOCKED') || latestLog.status.includes('MATCH'))) {
+                        
                     }
                 }
 
